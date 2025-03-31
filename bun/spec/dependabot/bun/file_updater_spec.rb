@@ -56,14 +56,14 @@ RSpec.describe Dependabot::Bun::FileUpdater do
   # Variable to control the npm fallback version feature flag
   let(:npm_fallback_version_above_v6_enabled) { true }
   # Variable to control the enabling feature flag for the corepack fix
-  let(:enable_corepack_for_npm_and_yarn) { true }
+  let(:enable_corepack_for_bun) { true }
 
   before do
     FileUtils.mkdir_p(tmp_path)
     allow(Dependabot::Experiments).to receive(:enabled?)
       .with(:npm_fallback_version_above_v6).and_return(npm_fallback_version_above_v6_enabled)
     allow(Dependabot::Experiments).to receive(:enabled?)
-      .with(:enable_corepack_for_npm_and_yarn).and_return(enable_corepack_for_npm_and_yarn)
+      .with(:enable_corepack_for_bun).and_return(enable_corepack_for_bun)
     allow(Dependabot::Experiments).to receive(:enabled?)
       .with(:enable_shared_helpers_command_timeout).and_return(true)
     allow(Dependabot::Experiments).to receive(:enabled?)

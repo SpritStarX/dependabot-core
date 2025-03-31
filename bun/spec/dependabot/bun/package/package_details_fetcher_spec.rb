@@ -5,9 +5,9 @@ require "spec_helper"
 require "dependabot/credential"
 require "dependabot/dependency"
 require "dependabot/dependency_file"
-require "dependabot/npm_and_yarn/package/package_details_fetcher"
-require "dependabot/npm_and_yarn/version"
-require "dependabot/npm_and_yarn/requirement"
+require "dependabot/bun/package/package_details_fetcher"
+require "dependabot/bun/version"
+require "dependabot/bun/requirement"
 require "dependabot/package/package_release"
 require "dependabot/package/package_language"
 
@@ -31,7 +31,7 @@ RSpec.describe Dependabot::Bun::Package::PackageDetailsFetcher do
         groups: ["dependencies"],
         source: nil
       }],
-      package_manager: "npm_and_yarn"
+      package_manager: "bun"
     )
   end
 

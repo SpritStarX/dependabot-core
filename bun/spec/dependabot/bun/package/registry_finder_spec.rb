@@ -3,22 +3,18 @@
 
 require "spec_helper"
 require "dependabot/credential"
-require "dependabot/npm_and_yarn/package/registry_finder"
+require "dependabot/bun/package/registry_finder"
 
 RSpec.describe Dependabot::Bun::Package::RegistryFinder do
   subject(:finder) do
     described_class.new(
       dependency: dependency,
       credentials: credentials,
-      npmrc_file: npmrc_file,
-      yarnrc_file: yarnrc_file,
-      yarnrc_yml_file: yarnrc_yml_file
+      npmrc_file: npmrc_file
     )
   end
 
   let(:npmrc_file) { nil }
-  let(:yarnrc_file) { nil }
-  let(:yarnrc_yml_file) { nil }
   let(:credentials) do
     [Dependabot::Credential.new({
       "type" => "git_source",
@@ -41,7 +37,7 @@ RSpec.describe Dependabot::Bun::Package::RegistryFinder do
       name: dependency_name,
       version: "1.0.0",
       requirements: requirements,
-      package_manager: "npm_and_yarn"
+      package_manager: "bun"
     )
   end
   let(:source) { nil }
@@ -77,26 +73,6 @@ RSpec.describe Dependabot::Bun::Package::RegistryFinder do
       end
     end
 
-    context "with a global yarn registry" do
-      let(:yarnrc_file) { Dependabot::DependencyFile.new(name: ".yarnrc", content: 'registry "http://example.com"') }
-
-      it { is_expected.to eq("http://example.com") }
-    end
-
-    context "with a global yarn registry not wrapped in quotes" do
-      let(:yarnrc_file) { Dependabot::DependencyFile.new(name: ".yarnrc", content: "registry http://example.com") }
-
-      it { is_expected.to eq("http://example.com") }
-    end
-
-    context "with a global yarn berry registry" do
-      let(:yarnrc_yml_file) do
-        Dependabot::DependencyFile.new(name: ".yarnrc.yml", content: 'npmRegistryServer: "https://example.com"')
-      end
-
-      it { is_expected.to eq("https://example.com") }
-    end
-
     context "with a scoped npm registry" do
       let(:dependency_name) { "@dependabot/some_dep" }
       let(:npmrc_file) { Dependabot::DependencyFile.new(name: ".npmrc", content: "@dependabot:registry=http://example.com") }
@@ -127,58 +103,12 @@ RSpec.describe Dependabot::Bun::Package::RegistryFinder do
         it { is_expected.to eq("http://example.com") }
       end
     end
-
-    context "with a scoped yarn registry" do
-      let(:dependency_name) { "@dependabot/some_dep" }
-      let(:yarnrc_file) { Dependabot::DependencyFile.new(name: ".yarnrc", content: '"@dependabot:registry" "http://example.com"') }
-
-      it { is_expected.to eq("http://example.com") }
-    end
-
-    context "with a scoped yarn registry not wrapped in quotes" do
-      let(:dependency_name) { "@dependabot/some_dep" }
-      let(:yarnrc_file) { Dependabot::DependencyFile.new(name: ".yarnrc", content: '"@dependabot:registry" http://example.com') }
-
-      it { is_expected.to eq("http://example.com") }
-    end
-
-    context "with a scoped yarn berry registry" do
-      let(:dependency_name) { "@dependabot/some_dep" }
-      let(:yarnrc_yml_content) do
-        <<~YARNRC
-          npmScopes:
-            dependabot:
-              npmRegistryServer: "https://example.com"
-        YARNRC
-      end
-      let(:yarnrc_yml_file) { Dependabot::DependencyFile.new(name: ".yarnrc", content: yarnrc_yml_content) }
-
-      it { is_expected.to eq("https://example.com") }
-    end
   end
 
   describe "registry" do
     subject { finder.registry }
 
     it { is_expected.to eq("registry.npmjs.org") }
-
-    context "with both a scoped npm registry and a global one" do
-      let(:dependency_name) { "@dependabot/some_dep" }
-      let(:npmrc_file) do
-        Dependabot::DependencyFile.new(
-          name: ".npmrc",
-          content: "registry=https://example.com\n@dependabot:registry=https://scoped.example.com"
-        )
-      end
-
-      it { is_expected.to eq("scoped.example.com") }
-
-      context "when a dependency under a different scope" do
-        let(:dependency_name) { "@foo/bar" }
-
-        it { is_expected.to eq("example.com") }
-      end
-    end
 
     context "with credentials for a private registry" do
       let(:credentials) do
@@ -258,46 +188,6 @@ RSpec.describe Dependabot::Bun::Package::RegistryFinder do
       end
     end
 
-    context "with a .npmrc file" do
-      let(:npmrc_file) do
-        project_dependency_files(project_name).find { |f| f.name == ".npmrc" }
-      end
-      let(:project_name) { "npm6/npmrc_auth_token" }
-
-      before do
-        body = fixture("gemfury_responses", "gemfury_response_etag.json")
-        stub_request(:get, "https://npm.fury.io/dependabot/etag")
-          .with(headers: { "Authorization" => "Bearer secret_token" })
-          .to_return(status: 200, body: body)
-      end
-
-      it { is_expected.to eq("npm.fury.io/dependabot") }
-
-      context "with an environment variable URL" do
-        let(:project_name) { "npm6/npmrc_env_url" }
-
-        it { is_expected.to eq("registry.npmjs.org") }
-      end
-
-      context "when it includes a carriage return" do
-        let(:project_name) { "npm6/npmrc_auth_token_carriage_return" }
-
-        it { is_expected.to eq("npm.fury.io/dependabot") }
-      end
-
-      context "when it includes only a global registry" do
-        let(:project_name) { "npm6/npmrc_only_global_registry" }
-
-        it { is_expected.to eq("global.example.org") }
-      end
-
-      context "when it includes a scoped registry that does not match the dependency's scope" do
-        let(:project_name) { "npm6/npmrc_other_scoped_registry" }
-
-        it { is_expected.to eq("registry.npmjs.org") }
-      end
-    end
-
     context "with a space in registry url" do
       context "when dependency is in .npmrc file" do
         let(:npmrc_file) do
@@ -313,78 +203,6 @@ RSpec.describe Dependabot::Bun::Package::RegistryFinder do
         end
 
         it { is_expected.to eq("npm.fury.io/dependabot%20with%20space") }
-      end
-
-      context "when dependency is in .yarnrc file" do
-        let(:yarnrc_file) do
-          project_dependency_files(project_name).find { |f| f.name == ".yarnrc" }
-        end
-        let(:project_name) { "yarn/yarnrc_global_registry_with_space" }
-
-        before do
-          url = "https://npm-proxy.fury.io/password/dependabot%20with%20space/etag"
-          body = fixture("gemfury_responses", "gemfury_response_etag.json")
-
-          stub_request(:get, url).to_return(status: 200, body: body)
-        end
-
-        it { is_expected.to eq("npm-proxy.fury.io/password/dependabot%20with%20space") }
-      end
-    end
-
-    context "with a .yarnrc file" do
-      let(:yarnrc_file) do
-        project_dependency_files(project_name).find { |f| f.name == ".yarnrc" }
-      end
-      let(:project_name) { "yarn/yarnrc_global_registry" }
-
-      before do
-        url = "https://npm-proxy.fury.io/password/dependabot/etag"
-        body = fixture("gemfury_responses", "gemfury_response_etag.json")
-
-        stub_request(:get, url).to_return(status: 200, body: body)
-      end
-
-      it { is_expected.to eq("npm-proxy.fury.io/password/dependabot") }
-
-      context "when it can't be reached" do
-        before do
-          url = "https://npm-proxy.fury.io/password/dependabot/etag"
-          stub_request(:get, url).to_return(status: 401, body: "")
-        end
-
-        # Since this registry is declared at the global registry, in the absence
-        # of other information we should still us it (and *not* flaa back to
-        # registry.npmjs.org)
-        it { is_expected.to eq("npm-proxy.fury.io/password/dependabot") }
-      end
-    end
-
-    context "with a .yarnrc.yml file" do
-      let(:yarnrc_yml_file) do
-        project_dependency_files(project_name).find { |f| f.name == ".yarnrc.yml" }
-      end
-      let(:project_name) { "yarn_berry/yarnrc_global_registry" }
-
-      before do
-        url = "https://npm-proxy.fury.io/password/dependabot/etag"
-        body = fixture("gemfury_responses", "gemfury_response_etag.json")
-
-        stub_request(:get, url).to_return(status: 200, body: body)
-      end
-
-      it { is_expected.to eq("npm-proxy.fury.io/password/dependabot") }
-
-      context "when it can't be reached" do
-        before do
-          url = "https://npm-proxy.fury.io/password/dependabot/etag"
-          stub_request(:get, url).to_return(status: 401, body: "")
-        end
-
-        # Since this registry is declared at the global registry, in the absence
-        # of other information we should still us it (and *not* flaa back to
-        # registry.npmjs.org)
-        it { is_expected.to eq("npm-proxy.fury.io/password/dependabot") }
       end
     end
 
