@@ -10,7 +10,7 @@ module SilentPackageManager
   class Requirement < Dependabot::Requirement
     extend T::Sig
 
-    AND_SEPARATOR = /(?<=[a-zA-Z0-9*])\s+(?:&+\s+)?(?!\s*[|-])/
+    AND_SEPARATOR = /(?<=[a-zA-Z0-9*])\s{1,10}(?:&+\s{1,10})?(?!\s*[|-])/
 
     sig { override.params(requirement_string: T.nilable(String)).returns(T::Array[Dependabot::Requirement]) }
     def self.requirements_array(requirement_string)
