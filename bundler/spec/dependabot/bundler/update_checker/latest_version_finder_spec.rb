@@ -6,6 +6,7 @@ require "shared_contexts"
 require "dependabot/dependency"
 require "dependabot/dependency_file"
 require "dependabot/bundler/update_checker/latest_version_finder"
+require "dependabot/package/package_latest_version_finder"
 
 RSpec.describe Dependabot::Bundler::UpdateChecker::LatestVersionFinder do
   let(:finder) do
@@ -21,6 +22,7 @@ RSpec.describe Dependabot::Bundler::UpdateChecker::LatestVersionFinder do
         "username" => "x-access-token",
         "password" => "token"
       }],
+      cooldown_options: cooldown_options,
       options: {}
     )
   end
@@ -52,6 +54,20 @@ RSpec.describe Dependabot::Bundler::UpdateChecker::LatestVersionFinder do
   let(:requirement_string) { ">= 0" }
 
   let(:rubygems_url) { "https://rubygems.org/api/v1/" }
+
+  let(:cooldown_options) { nil }
+  let(:enable_cooldown_for_bundler) { false }
+
+  before do
+    allow(Dependabot::Experiments).to receive(:enabled?).and_call_original
+    allow(Dependabot::Experiments).to receive(:enabled?)
+      .with(:enable_cooldown_for_bundler)
+      .and_return(enable_cooldown_for_bundler)
+  end
+
+  after do
+    Dependabot::Experiments.reset!
+  end
 
   describe "#latest_version_details" do
     subject(:latest_version_details) { finder.latest_version_details }
@@ -254,6 +270,35 @@ RSpec.describe Dependabot::Bundler::UpdateChecker::LatestVersionFinder do
         let(:dependency_files) { bundler_project_dependency_files("no_lockfile") }
 
         its([:version]) { is_expected.to eq(Gem::Version.new("1.5.0")) }
+      end
+    end
+
+    context "with cooldown enabled" do
+      let(:enable_cooldown_for_bundler) { true }
+      let(:cooldown_options) { Dependabot::Package::ReleaseCooldownOptions.new(default_days: 60) }
+
+      before do
+        rubygems_response = fixture("ruby", "rubygems_response_versions.json")
+        stub_request(:get, rubygems_url + "versions/business.json")
+          .to_return(status: 200, body: rubygems_response)
+          .to_return(status: 200, body: rubygems_response)
+
+        allow(Time).to receive(:now).and_return(Time.parse("2015-06-03T17:19:42.588Z"))
+      end
+
+      it "fetches the latest version details" do
+        result = latest_version_details
+expect(Time).to receive(:now).once
+        expect(result).to be_a(Hash)
+        expect(result).not_to be_empty
+        expect(result[:version]).to eq(Gem::Version.new("1.5.0"))
+        expect(a_request(:get, rubygems_url + "versions/business.json")).to have_been_made.twice
+      end
+
+      it "fetches the latest version" do
+        result = finder.latest_version
+
+        expect(result).to eq(Gem::Version.new("1.5.0"))
       end
     end
 
